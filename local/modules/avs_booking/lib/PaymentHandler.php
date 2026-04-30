@@ -1,7 +1,6 @@
 <?php
-// Этот класс больше не используется для прямых платежей
+// Этот класс оставлен для обратной совместимости
 // Платежи обрабатываются через штатную платежную систему Битрикса
-// Класс оставлен для обратной совместимости
 
 class AVSPaymentHandler
 {
@@ -9,7 +8,7 @@ class AVSPaymentHandler
     {
         // nothing
     }
-
+    
     public function createPayment($bookingData, $totalPrice, $depositAmount = null)
     {
         return [
@@ -17,7 +16,7 @@ class AVSPaymentHandler
             'confirmation_url' => ''
         ];
     }
-
+    
     public function getPaymentStatus($paymentId)
     {
         return [

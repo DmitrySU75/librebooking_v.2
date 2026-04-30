@@ -1,17 +1,16 @@
 <?php
-
 use Bitrix\Main\Loader;
 use Bitrix\Main\Config\Option;
 
 class AVSServicesManager
 {
     private static $moduleId = 'avs_booking';
-
+    
     public static function getAvailableServices($resourceId, $bookingDate)
     {
         $iblockId = Option::get(self::$moduleId, 'services_iblock_id', 0);
         if (!$iblockId || !Loader::includeModule('iblock')) return [];
-
+        
         $services = [];
         $res = \CIBlockElement::GetList(
             ['SORT' => 'ASC'],
@@ -29,11 +28,11 @@ class AVSServicesManager
             false,
             ['ID', 'NAME', 'PREVIEW_TEXT', 'PROPERTY_SERVICE_TYPE', 'PROPERTY_PRICE_TYPE', 'PROPERTY_PRICE_VALUE']
         );
-
+        
         while ($service = $res->GetNextElement()) {
             $fields = $service->GetFields();
             $props = $service->GetProperties();
-
+            
             $services[] = [
                 'id' => $fields['ID'],
                 'name' => $fields['NAME'],
@@ -43,10 +42,10 @@ class AVSServicesManager
                 'price_value' => (float)$props['PRICE_VALUE']['VALUE']
             ];
         }
-
+        
         return $services;
     }
-
+    
     public static function calculateServicePrice($service, $durationDays, $quantity = 1)
     {
         switch ($service['price_type']) {
@@ -55,7 +54,7 @@ class AVSServicesManager
             case 'per_day':
                 return $service['price_value'] * $durationDays * $quantity;
             case 'discount_percent':
-                return - ($service['price_value'] / 100);
+                return -($service['price_value'] / 100);
             default:
                 return $service['price_value'] * $quantity;
         }

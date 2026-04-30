@@ -3,6 +3,7 @@
 use Bitrix\Main\ModuleManager;
 use Bitrix\Main\Config\Option;
 use Bitrix\Main\Loader;
+use Bitrix\Main\EventManager;
 
 class avs_booking extends CModule
 {
@@ -103,6 +104,11 @@ $this->IncludeComponentTemplate();
             mkdir($templateDir, 0755, true);
         }
 
+        $sourceTemplate = $_SERVER['DOCUMENT_ROOT'] . '/local/modules/avs_booking/templates/.default/template.php';
+        if (file_exists($sourceTemplate)) {
+            copy($sourceTemplate, $templateDir . '/template.php');
+        }
+
         return true;
     }
 
@@ -114,7 +120,7 @@ $this->IncludeComponentTemplate();
 
     public function InstallEvents()
     {
-        $eventManager = \Bitrix\Main\EventManager::getInstance();
+        $eventManager = EventManager::getInstance();
 
         $eventManager->registerEventHandler(
             'main',
@@ -137,7 +143,7 @@ $this->IncludeComponentTemplate();
 
     public function UnInstallEvents()
     {
-        $eventManager = \Bitrix\Main\EventManager::getInstance();
+        $eventManager = EventManager::getInstance();
 
         $eventManager->unRegisterEventHandler(
             'main',
@@ -166,8 +172,8 @@ $this->IncludeComponentTemplate();
         Option::set($this->MODULE_ID, 'default_schedule_id', 2);
         Option::set($this->MODULE_ID, 'timezone_offset', '+05:00');
         Option::set($this->MODULE_ID, 'default_deposit_amount', 0);
-        Option::set($this->MODULE_ID, 'service_product_id', 0);
-        Option::set($this->MODULE_ID, 'yookassa_paysystem_id', 0);
+        Option::set($this->MODULE_ID, 'service_product_id', 347);
+        Option::set($this->MODULE_ID, 'yookassa_paysystem_id', 2);
         Option::set($this->MODULE_ID, 'admin_email', '');
         Option::set($this->MODULE_ID, 'bitrix24_webhook', '');
         Option::set($this->MODULE_ID, 'api_1c_key', md5(uniqid('avs_booking_', true) . time()));

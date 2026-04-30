@@ -117,6 +117,14 @@ $tabControl = new CAdminTabControl('tabControl', $aTabs);
         <td width="40%">Сумма предоплаты по умолчанию (₽):</td>
         <td width="60%"><input type="text" name="default_deposit_amount" value="<?= htmlspecialchars(Option::get($module_id, 'default_deposit_amount', '0')) ?>" size="10"></td>
     </tr>
+    <tr>
+        <td>Shop ID ЮKassa:</td>
+        <td><input type="text" name="yookassa_shop_id" value="<?= htmlspecialchars(Option::get($module_id, 'yookassa_shop_id')) ?>" size="40"></td>
+    </tr>
+    <tr>
+        <td>Секретный ключ ЮKassa:</td>
+        <td><input type="password" name="yookassa_secret_key" value="<?= htmlspecialchars(Option::get($module_id, 'yookassa_secret_key')) ?>" size="60" autocomplete="off"></td>
+    </tr>
 
     <? $tabControl->BeginNextTab(); ?>
     <tr class="heading">

@@ -195,7 +195,10 @@ $minHours = $gazebo['min_hours'] > 0 ? $gazebo['min_hours'] : 4;
         let currentAvailableSlots = [];
         let currentRentalType = null;
 
-        // Функции для сортировки и фильтрации
+        if (formContainer) formContainer.style.display = 'none';
+        if (unavailable) unavailable.style.display = 'none';
+        if (loader) loader.style.display = 'none';
+
         function sortHoursByHour(slots) {
             return slots.sort((a, b) => a.hour - b.hour);
         }
@@ -205,7 +208,6 @@ $minHours = $gazebo['min_hours'] > 0 ? $gazebo['min_hours'] : 4;
             return slots.filter(slot => slot.hour <= maxStartHour);
         }
 
-        // Обновление доступных часов начала
         function updateAvailableHours() {
             if (!startHourSelect) return;
 
@@ -249,7 +251,6 @@ $minHours = $gazebo['min_hours'] > 0 ? $gazebo['min_hours'] : 4;
             }
         }
 
-        // Обновление максимального количества часов
         function updateMaxHours() {
             if (!startHourSelect || !hoursSelect || currentRentalType !== 'hourly') return;
 
@@ -283,7 +284,6 @@ $minHours = $gazebo['min_hours'] > 0 ? $gazebo['min_hours'] : 4;
             updateTotal();
         }
 
-        // Склонение часов
         function declensionHours(hours) {
             const lastDigit = hours % 10;
             const lastTwoDigits = hours % 100;
@@ -300,7 +300,6 @@ $minHours = $gazebo['min_hours'] > 0 ? $gazebo['min_hours'] : 4;
             return 'часов';
         }
 
-        // Обновление итоговой цены
         function updateTotal() {
             const selectedRadio = document.querySelector('input[name="rental_type"]:checked');
             const type = selectedRadio ? selectedRadio.value : '';
@@ -315,7 +314,6 @@ $minHours = $gazebo['min_hours'] > 0 ? $gazebo['min_hours'] : 4;
             if (totalSpan) totalSpan.textContent = total.toLocaleString();
         }
 
-        // Обработка смены типа аренды
         function handleRadioChange() {
             const selectedRadio = document.querySelector('input[name="rental_type"]:checked');
             const isHourly = selectedRadio && selectedRadio.value === 'hourly';
@@ -332,7 +330,6 @@ $minHours = $gazebo['min_hours'] > 0 ? $gazebo['min_hours'] : 4;
             updateTotal();
         }
 
-        // Обработчик выбора даты
         if (dateInput) {
             dateInput.addEventListener('change', function() {
                 const date = this.value;
@@ -458,7 +455,6 @@ $minHours = $gazebo['min_hours'] > 0 ? $gazebo['min_hours'] : 4;
             });
         }
 
-        // Обработчики изменения полей
         if (hoursSelect) {
             hoursSelect.addEventListener('change', updateTotal);
         }
@@ -467,7 +463,6 @@ $minHours = $gazebo['min_hours'] > 0 ? $gazebo['min_hours'] : 4;
             startHourSelect.addEventListener('change', updateMaxHours);
         }
 
-        // Обработчик отправки формы
         if (submitBtn) {
             submitBtn.addEventListener('click', function() {
                 const date = dateInput ? dateInput.value : '';
@@ -480,7 +475,6 @@ $minHours = $gazebo['min_hours'] > 0 ? $gazebo['min_hours'] : 4;
                 const startHour = startHourSelect ? startHourSelect.value : 10;
                 const hours = hoursSelect && hoursSelect.value ? hoursSelect.value : minHours;
 
-                // Очистка телефона от нецифровых символов
                 const phoneDigits = phoneRaw.replace(/\D/g, '');
                 let phoneFormatted = '';
                 if (phoneDigits.length === 11 && phoneDigits[0] === '7') {
@@ -491,7 +485,6 @@ $minHours = $gazebo['min_hours'] > 0 ? $gazebo['min_hours'] : 4;
                     phoneFormatted = phoneRaw;
                 }
 
-                // Валидация
                 if (!date) {
                     alert('Выберите дату');
                     return;

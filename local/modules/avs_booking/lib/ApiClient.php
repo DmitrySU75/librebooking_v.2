@@ -224,14 +224,20 @@ class AVSBookingApiClient
     public function createReservation($resourceId, $startTime, $endTime, $userData)
     {
         return $this->request('POST', 'Reservations/', [
-            'resourceId' => $resourceId,
+            'resourceId' => (int)$resourceId,
             'startDateTime' => $startTime,
             'endDateTime' => $endTime,
             'title' => 'Бронирование с сайта',
             'description' => "Телефон: {$userData['phone']}\nКомментарий: {$userData['comment']}",
             'firstName' => $userData['first_name'],
             'lastName' => $userData['last_name'] ?? '',
-            'emailAddress' => $userData['email']
+            'emailAddress' => $userData['email'],
+            'allowParticipation' => true,
+            'termsAccepted' => true,
+            'invitees' => [],
+            'participants' => [],
+            'accessories' => [],
+            'customAttributes' => []
         ]);
     }
 }

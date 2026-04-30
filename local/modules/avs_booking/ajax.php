@@ -15,6 +15,17 @@ use Bitrix\Sale\PaySystem\Manager;
 
 header('Content-Type: application/json');
 
+$logFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/payment_debug.log';
+
+function writeLog($message)
+{
+    global $logFile;
+    file_put_contents($logFile, date('[Y-m-d H:i:s]') . ' ' . $message . PHP_EOL, FILE_APPEND);
+}
+
+writeLog('========== НАЧАЛО ЗАПРОСА ==========');
+writeLog('POST: ' . print_r($_POST, true));
+
 $action = $_POST['action'] ?? '';
 
 try {
@@ -29,6 +40,7 @@ try {
             echo json_encode(['success' => false, 'message' => 'Неизвестное действие']);
     }
 } catch (Exception $e) {
+    writeLog('ОШИБКА: ' . $e->getMessage());
     echo json_encode(['success' => false, 'message' => $e->getMessage()]);
 }
 
@@ -86,6 +98,8 @@ function createPayment()
 {
     global $USER;
 
+    writeLog('========== createPayment ==========');
+
     $elementId = (int)$_POST['element_id'];
     $date = $_POST['date'];
     $rentalType = $_POST['rental_type'];
@@ -96,16 +110,22 @@ function createPayment()
     $startHour = (int)($_POST['start_hour'] ?? 10);
     $hours = (int)($_POST['hours'] ?? 4);
 
+    writeLog("Параметры: elementId=$elementId, date=$date, rentalType=$rentalType, name=$name, phone=$phone, email=$email, startHour=$startHour, hours=$hours");
+
     if (!$elementId || !$date || !$rentalType || !$name || !$phone || !$email) {
+        writeLog('ОШИБКА: Не заполнены обязательные поля');
         echo json_encode(['success' => false, 'message' => 'Заполните все обязательные поля']);
         return;
     }
 
     $gazebo = AVSBookingModule::getGazeboData($elementId);
     if (!$gazebo || !$gazebo['resource_id']) {
+        writeLog('ОШИБКА: Беседка не найдена, elementId=' . $elementId);
         echo json_encode(['success' => false, 'message' => 'Беседка не найдена']);
         return;
     }
+
+    writeLog('Беседка найдена: ' . $gazebo['name'] . ', resource_id=' . $gazebo['resource_id']);
 
     $timezone = '+05:00';
 
@@ -130,84 +150,129 @@ function createPayment()
             return;
     }
 
+    writeLog("Время: start=$start, end=$end");
+
     $price = AVSBookingModule::getPriceForDate($elementId, $date, $rentalType);
     $totalPrice = $price * ($rentalType === 'hourly' ? $hours : 1);
-
     $depositAmount = $gazebo['deposit_amount'] ?? (float)Option::get('avs_booking', 'default_deposit_amount', 0);
     if ($depositAmount > $totalPrice) {
         $depositAmount = $totalPrice;
     }
 
+    writeLog("Цена: price=$price, totalPrice=$totalPrice, depositAmount=$depositAmount");
+
     try {
         if (!CModule::IncludeModule('sale') || !CModule::IncludeModule('catalog')) {
             throw new Exception('Модули sale или catalog не установлены');
         }
+        writeLog("Модули sale и catalog загружены");
 
         $siteId = SITE_ID;
         $userId = $USER->IsAuthorized() ? $USER->GetID() : \CSaleUser::GetAnonymousUserID();
+        writeLog("siteId=$siteId, userId=$userId, USER->IsAuthorized=" . ($USER->IsAuthorized() ? 'true' : 'false'));
 
+        // Создаем корзину
+        writeLog("Создание корзины...");
         $basket = Basket::create($siteId);
+        writeLog("Корзина создана");
 
         $serviceProductId = (int)Option::get('avs_booking', 'service_product_id', 0);
         if (!$serviceProductId) {
             throw new Exception('Не настроен товар для услуги аренды');
         }
+        writeLog("serviceProductId=$serviceProductId");
 
+        // Добавляем товар в корзину
+        writeLog("Добавление товара в корзину...");
         $item = $basket->createItem('catalog', $serviceProductId);
         $item->setField('QUANTITY', 1);
         $item->setField('CUSTOM_PRICE', 'Y');
         $item->setField('PRICE', $totalPrice);
         $item->setField('NAME', 'Аренда ' . $gazebo['name'] . ' на ' . $date);
         $item->setField('CURRENCY', 'RUB');
+        writeLog("Товар добавлен");
 
-        $basket->save();
+        // Сохраняем корзину
+        writeLog("Сохранение корзины...");
+        $basketSaveResult = $basket->save();
+        if (!$basketSaveResult->isSuccess()) {
+            $errors = $basketSaveResult->getErrorMessages();
+            writeLog("ОШИБКИ при сохранении корзины: " . implode(', ', $errors));
+            throw new Exception('Ошибка сохранения корзины: ' . implode(', ', $errors));
+        }
+        writeLog("Корзина сохранена");
 
+        // Создаем заказ
+        writeLog("Создание заказа...");
         $order = Order::create($siteId, $userId);
         $order->setPersonTypeId(1);
         $order->setBasket($basket);
+        writeLog("Заказ создан");
 
+        // Устанавливаем свойства заказа
+        writeLog("Установка свойств заказа...");
         $propertyCollection = $order->getPropertyCollection();
 
         $nameProperty = $propertyCollection->getItemByOrderPropertyCode('FIO');
         if ($nameProperty) {
             $nameProperty->setValue($name);
+            writeLog("Установлено имя: $name");
         }
 
         $phoneProperty = $propertyCollection->getItemByOrderPropertyCode('PHONE');
         if ($phoneProperty) {
             $phoneProperty->setValue($phone);
+            writeLog("Установлен телефон: $phone");
         }
 
         $emailProperty = $propertyCollection->getItemByOrderPropertyCode('EMAIL');
         if ($emailProperty) {
             $emailProperty->setValue($email);
+            writeLog("Установлен email: $email");
         }
 
         $order->setField('COMMENTS', "Бронирование беседки {$gazebo['name']}\nДата: {$date}\nВремя: {$start} - {$end}\nТип аренды: {$rentalType}\nТелефон: {$phone}\nКомментарий: {$comment}");
 
+        writeLog("Сохранение заказа...");
         $orderResult = $order->save();
         if (!$orderResult->isSuccess()) {
-            throw new Exception(implode(', ', $orderResult->getErrorMessages()));
+            $errors = $orderResult->getErrorMessages();
+            writeLog("ОШИБКИ при сохранении заказа: " . implode(', ', $errors));
+            throw new Exception('Ошибка сохранения заказа: ' . implode(', ', $errors));
         }
 
+        $orderId = $order->getId();
+        writeLog("Заказ создан, ID=$orderId");
+
+        // Добавляем оплату
+        writeLog("Создание платежа...");
         $paymentCollection = $order->getPaymentCollection();
 
         $paySystemId = (int)Option::get('avs_booking', 'yookassa_paysystem_id', 0);
         if (!$paySystemId) {
             throw new Exception('Не настроена платежная система ЮKassa');
         }
+        writeLog("paySystemId=$paySystemId");
 
         $payment = $paymentCollection->createItem(Manager::getObjectById($paySystemId));
         $payment->setField('SUM', $depositAmount);
         $payment->setField('CURRENCY', 'RUB');
+        writeLog("Платёж создан, сумма=$depositAmount");
 
+        writeLog("Сохранение платежа...");
         $paymentResult = $payment->save();
         if (!$paymentResult->isSuccess()) {
-            throw new Exception(implode(', ', $paymentResult->getErrorMessages()));
+            $errors = $paymentResult->getErrorMessages();
+            writeLog("ОШИБКИ при сохранении платежа: " . implode(', ', $errors));
+            throw new Exception('Ошибка сохранения платежа: ' . implode(', ', $errors));
         }
 
+        $paymentId = $payment->getId();
+        writeLog("Платёж сохранён, ID=$paymentId");
+
+        // Сохраняем данные бронирования в сессию
         $_SESSION['avs_booking_data'] = [
-            'order_id' => $order->getId(),
+            'order_id' => $orderId,
             'booking_data' => [
                 'resource_id' => $gazebo['resource_id'],
                 'resource_name' => $gazebo['name'],
@@ -226,48 +291,30 @@ function createPayment()
                 ]
             ]
         ];
+        writeLog("Данные бронирования сохранены в сессию, order_id=$orderId");
 
-        // ВРЕМЕННО: создаём бронирование сразу (для теста, без оплаты)
-        $bookingResult = AVSBookingModule::createBooking(
-            $gazebo['resource_id'],
-            $start,
-            $end,
-            [
-                'first_name' => explode(' ', $name)[0],
-                'last_name' => explode(' ', $name)[1] ?? '',
-                'phone' => $phone,
-                'email' => $email,
-                'comment' => $comment
-            ]
-        );
-
-        if (isset($bookingResult['referenceNumber'])) {
-            $bookingData = [
-                'resource_name' => $gazebo['name'],
-                'date' => $date,
-                'rental_type' => $rentalType,
-                'start_time' => $start,
-                'end_time' => $end,
-                'user_data' => [
-                    'first_name' => explode(' ', $name)[0],
-                    'last_name' => explode(' ', $name)[1] ?? '',
-                    'phone' => $phone,
-                    'email' => $email,
-                    'comment' => $comment
-                ]
-            ];
-            AVSBookingModule::sendNotifications($bookingResult['referenceNumber'], $bookingData, $depositAmount);
+        // Получаем хэш заказа
+        $hash = '';
+        if (method_exists($order, 'getHash')) {
+            $hash = $order->getHash();
+            writeLog("Хэш заказа: $hash");
         }
+
+        $url = '/bitrix/tools/sale_payment.php?PAYMENT_ID=' . $paymentId . '&PAY_SYSTEM_ID=' . $paySystemId . '&HASH=' . $hash;
+        writeLog("URL оплаты: $url");
+        writeLog('========== createPayment УСПЕШНО ЗАВЕРШЁН ==========');
 
         echo json_encode([
             'success' => true,
-            'confirmation_url' => '/booking-success/'
+            'confirmation_url' => $url
         ]);
     } catch (Exception $e) {
-        $errorMessage = urlencode('Ошибка: ' . $e->getMessage());
+        writeLog('ОШИБКА в createPayment: ' . $e->getMessage());
+        writeLog('Трассировка: ' . $e->getTraceAsString());
+        writeLog('========== createPayment ЗАВЕРШЁН С ОШИБКОЙ ==========');
         echo json_encode([
             'success' => false,
-            'confirmation_url' => '/booking-error/?error=' . $errorMessage
+            'message' => 'Ошибка при создании заказа: ' . $e->getMessage()
         ]);
     }
 }
